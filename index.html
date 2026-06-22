@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>주간 아파트 시세 트래커</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root{
+    --bg:#F1F2F4; --surface:#FFFFFF; --ink:#15171E; --sub:#6B7280;
+    --hair:#E6E8EC; --hair-strong:#D7DAE0; --chip:#F4F5F7;
+    --up:#C0392B; --down:#1E7A56;
+    --font:"Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;line-height:1.45;
+    font-feature-settings:"tnum" 1,"cv01" 1;}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 14px 40px;}
+
+  /* header */
+  .head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;
+    padding-bottom:14px;border-bottom:1.5px solid var(--ink);margin-bottom:16px;}
+  .head h1{font-size:18px;font-weight:800;letter-spacing:-.02em;}
+  .head .sub{font-size:12px;color:var(--sub);margin-top:3px;font-weight:500;}
+  .asof{text-align:right;font-size:11px;color:var(--sub);white-space:nowrap;line-height:1.5;}
+  .asof b{display:block;font-size:13px;color:var(--ink);font-weight:700;}
+
+  /* thesis line */
+  .thesis{background:var(--surface);border:1px solid var(--hair);border-radius:12px;
+    padding:12px 14px;margin-bottom:14px;font-size:13px;font-weight:500;}
+  .thesis .k{color:var(--sub);}
+  .thesis b{font-weight:800;}
+
+  /* segmented control */
+  .seg{display:flex;background:var(--chip);border-radius:11px;padding:3px;margin-bottom:14px;
+    border:1px solid var(--hair);}
+  .seg button{flex:1;border:0;background:transparent;color:var(--sub);font-family:inherit;
+    font-size:13px;font-weight:700;padding:9px 4px;border-radius:8px;cursor:pointer;
+    transition:.15s;letter-spacing:-.01em;}
+  .seg button.on{background:var(--ink);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+  .seg.reg{margin-bottom:8px;background:transparent;border:0;padding:0;gap:6px;}
+  .seg.reg button{flex:0 0 auto;border:1.5px solid var(--hair-strong);background:var(--surface);
+    color:var(--sub);border-radius:20px;padding:7px 18px;font-size:12px;}
+  .seg.reg button.on{background:var(--ink);color:#fff;border-color:var(--ink);box-shadow:none;}
+
+  /* chart card */
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:14px;}
+  .chartcard{padding:14px 10px 8px;margin-bottom:14px;}
+  .ymetric{font-size:11px;color:var(--sub);font-weight:600;padding:0 6px 6px;}
+  svg.chart{width:100%;height:auto;display:block;touch-action:none;}
+  .axislbl{font-size:13px;fill:var(--sub);font-family:var(--font);}
+  .gridline{stroke:var(--hair);stroke-width:1;}
+  .zeroline{stroke:var(--hair-strong);stroke-width:1;}
+  .sline{fill:none;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;}
+  .sdot{stroke:var(--surface);stroke-width:1.5;}
+  .realdot{stroke-width:2.4;fill:var(--surface);}
+  .guide{stroke:var(--hair-strong);stroke-width:1;stroke-dasharray:3 3;}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:6px;padding:8px 6px 4px;}
+  .lg{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    padding:5px 9px;border:1px solid var(--hair);border-radius:20px;cursor:pointer;
+    background:var(--surface);transition:.12s;user-select:none;}
+  .lg .sw{width:9px;height:9px;border-radius:50%;flex:none;}
+  .lg.off{opacity:.34;}
+  .lg.off .sw{background:var(--sub)!important;}
+
+  /* tooltip */
+  .tt{position:absolute;pointer-events:none;background:var(--ink);color:#fff;
+    border-radius:9px;padding:8px 10px;font-size:11px;opacity:0;transition:opacity .1s;
+    box-shadow:0 6px 20px rgba(0,0,0,.22);z-index:5;min-width:120px;}
+  .tt .d{font-weight:700;font-size:11px;margin-bottom:5px;color:#C9CCD3;}
+  .tt .r{display:flex;justify-content:space-between;gap:12px;line-height:1.6;}
+  .tt .r .nm{display:flex;align-items:center;gap:5px;}
+  .tt .r .sw{width:7px;height:7px;border-radius:50%;}
+  .tt .r b{font-weight:700;font-feature-settings:"tnum" 1;}
+
+  /* cards section */
+  .secttl{font-size:13px;font-weight:800;margin:18px 2px 10px;display:flex;
+    align-items:baseline;gap:8px;}
+  .secttl span{font-size:11px;font-weight:600;color:var(--sub);}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr);}}
+  @media(min-width:760px){.grid{grid-template-columns:repeat(4,1fr);}}
+  .ucard{padding:13px 14px;position:relative;overflow:hidden;}
+  .ucard .bar{position:absolute;left:0;top:0;bottom:0;width:4px;}
+  .ucard .nm{font-size:13.5px;font-weight:800;letter-spacing:-.02em;padding-left:4px;}
+  .ucard .py{font-size:11px;color:var(--sub);font-weight:600;margin:1px 0 9px;padding-left:4px;}
+  .ucard .price{font-size:24px;font-weight:800;letter-spacing:-.03em;padding-left:4px;
+    font-feature-settings:"tnum" 1;}
+  .ucard .price .u{font-size:14px;font-weight:700;color:var(--sub);margin-left:1px;}
+  .ucard .meta{display:flex;justify-content:space-between;align-items:center;
+    margin-top:9px;padding-left:4px;gap:8px;}
+  .ucard .ppy{font-size:11.5px;color:var(--sub);font-weight:600;}
+  .ucard .ppy b{color:var(--ink);font-weight:700;}
+  .chiplab{font-size:11px;font-weight:700;padding:3px 7px;border-radius:7px;
+    display:inline-flex;align-items:center;gap:3px;font-feature-settings:"tnum" 1;}
+  .chiplab.up{background:#FBEBE9;color:var(--up);}
+  .chiplab.down{background:#E7F4EE;color:var(--down);}
+  .chiplab.flat{background:var(--chip);color:var(--sub);}
+  .badge{position:absolute;top:11px;right:11px;font-size:9.5px;font-weight:800;
+    background:var(--ink);color:#fff;padding:3px 7px;border-radius:6px;letter-spacing:.01em;}
+  a.ucard{text-decoration:none;color:inherit;display:block;transition:transform .12s,box-shadow .12s;}
+  a.ucard:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);border-color:var(--hair-strong);}
+  a.ucard:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  .ucard .nm .go{font-size:11px;color:var(--sub);font-weight:700;}
+  .ucard .relrow{margin-top:9px;padding-left:4px;}
+  .relchip{font-size:11px;font-weight:700;padding:4px 8px;border-radius:7px;
+    display:inline-block;font-feature-settings:"tnum" 1;letter-spacing:-.01em;}
+  .relchip.low{background:#E8F0FB;color:#2D5FA8;}   /* 상대적으로 눌림 = 기회 */
+  .relchip.high{background:#FBF1E3;color:#9A6B1E;}  /* 상대 강세 */
+  .relchip.mid{background:var(--chip);color:var(--sub);}
+
+  /* footer / notes */
+  details.note{margin-top:18px;background:var(--surface);border:1px solid var(--hair);
+    border-radius:12px;padding:0 14px;}
+  details.note summary{cursor:pointer;list-style:none;padding:13px 0;font-size:12.5px;
+    font-weight:700;display:flex;justify-content:space-between;align-items:center;}
+  details.note summary::-webkit-details-marker{display:none}
+  details.note summary .ar{color:var(--sub);font-weight:600;transition:.2s;}
+  details.note[open] summary .ar{transform:rotate(90deg);}
+  .notebody{font-size:12px;color:var(--sub);line-height:1.7;padding:0 0 14px;
+    border-top:1px solid var(--hair);padding-top:11px;}
+  .notebody b{color:var(--ink);}
+  .notebody ul{margin:6px 0 0;padding-left:16px;}
+  .notebody li{margin:3px 0;}
+  .legendkey{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;}
+  .legendkey span{display:flex;align-items:center;gap:5px;}
+  .dotk{width:9px;height:9px;border-radius:50%;border:2px solid var(--ink);background:#fff;}
+  .dotk.est{background:var(--sub);border:none;width:7px;height:7px;}
+  .insights{padding:6px 4px;}
+  .insights .ins{display:flex;gap:9px;padding:9px 12px;font-size:12.5px;line-height:1.5;
+    border-bottom:1px solid var(--hair);}
+  .insights .ins:last-child{border-bottom:0;}
+  .insights .ins .mk{flex:none;width:5px;border-radius:3px;align-self:stretch;}
+  .insights .ins b{font-weight:800;}
+  .insights .ins .tag{font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:5px;
+    margin-right:5px;vertical-align:2px;white-space:nowrap;}
+  .tag.buy{background:#E8F0FB;color:#2D5FA8;} .tag.hot{background:#FBF1E3;color:#9A6B1E;}
+  .tag.mv{background:#FBEBE9;color:var(--up);} .tag.fyi{background:var(--chip);color:var(--sub);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <h1>MK 시세 트래커</h1>
+      <div class="sub">서울 12 · 부산 6 단지 · 매주 일요일 업데이트</div>
+    </div>
+    <div class="asof">기준일<b id="asof">2026.06.21</b>일요일</div>
+  </div>
+
+  <div class="seg reg" id="regseg">
+    <button data-r="서울" class="on">서울</button>
+    <button data-r="부산">부산</button>
+  </div>
+
+  <div class="seg" id="seg">
+    <button data-m="abs" class="on">절대가</button>
+    <button data-m="ppy">평당가</button>
+    <button data-m="idx">상승률</button>
+  </div>
+
+  <div class="card chartcard">
+    <div class="ymetric" id="ymetric"></div>
+    <div style="position:relative">
+      <svg class="chart" id="chart" viewBox="0 0 760 460" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="tt" id="tt"></div>
+    </div>
+  </div>
+
+  <div class="secttl">단지별 현황 <span id="sortnote">· 가격 높은 순 (그래프와 동일) · 탭하면 네이버부동산</span></div>
+  <div class="grid" id="cards"></div>
+
+  <div class="secttl" style="margin-top:20px">시사점</div>
+  <div class="card insights" id="insights"></div>
+
+  <details class="note">
+    <summary>데이터 출처 &amp; 업데이트 방식 <span class="ar">›</span></summary>
+    <div class="notebody">
+      <b>라인 = 호가·시세(추정)</b>, 호갱노노·KB부동산·국토부 실거래가를 기반으로 한 추정치예요.
+      <b>● 표시 = 실제 실거래</b>(국토부 신고가 등).
+      <div class="legendkey">
+        <span><span class="dotk"></span> 실거래</span>
+        <span><span class="dotk est"></span> 시세 추정</span>
+      </div>
+      <ul>
+        <li>2025년 1월~2026년 초 라인은 실거래·시세 흐름을 반영한 추정치입니다. 이번 주(6/21)부터 실제 주간 체크가 누적돼요.</li>
+        <li>특정 평형은 거래가 드물어 실거래 점이 띄엄띄엄 찍힐 수 있어요 — 그래서 라인은 시세로 깔았습니다.</li>
+        <li><b>업데이트:</b> 매주 일요일 6시 알림 뜨면 "주간 업데이트" 한마디 → 해당 지역 단지 최신 시세를 검색해 점 하나씩 추가해 드립니다.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script>
+/* ====================================================================
+   DATA  —  여기만 매주 수정하면 됩니다.
+   price 단위: 억원 / kind: "est"(시세추정) | "real"(실거래)
+   ==================================================================== */
+const DATA = {
+  asof: "2026-06-21",
+  apartments: [
+    { id:"yscp",  name:"용산센트럴파크", py:48, type:"48평", area:114, color:"#C99A2E",
+      points:[
+        {d:"2025-01-15",p:33.5,kind:"est"},{d:"2025-03-15",p:33.8,kind:"est"},{d:"2025-05-15",p:34.2,kind:"est"},
+        {d:"2025-07-15",p:34.8,kind:"est"},{d:"2025-09-15",p:35.5,kind:"est"},{d:"2025-11-15",p:36.3,kind:"est"},
+        {d:"2026-01-15",p:37.2,kind:"est"},{d:"2026-03-15",p:37.8,kind:"est"},{d:"2026-05-15",p:38.2,kind:"est"},
+        {d:"2026-06-21",p:38.5,kind:"est"} ] },
+    { id:"trim",  name:"트리마제", py:38, type:"38A", area:84.5, color:"#2E8B8B",
+      points:[
+        {d:"2025-01-15",p:42.0,kind:"est"},{d:"2025-03-15",p:43.0,kind:"est"},{d:"2025-05-15",p:44.5,kind:"est"},
+        {d:"2025-07-15",p:46.0,kind:"est"},{d:"2025-09-15",p:49.0,kind:"est"},
+        {d:"2025-10-15",p:57.0,kind:"real",note:"33층"},
+        {d:"2025-11-15",p:53.5,kind:"est"},{d:"2025-12-05",p:53.0,kind:"real"},
+        {d:"2026-01-15",p:53.0,kind:"est"},{d:"2026-03-15",p:52.3,kind:"est"},
+        {d:"2026-04-25",p:52.0,kind:"real",note:"40층"},
+        {d:"2026-05-15",p:52.6,kind:"est"},{d:"2026-06-21",p:53.0,kind:"est"} ] },
+    { id:"east",  name:"이스트폴", py:33, type:"33A", area:84, color:"#8C6BB1",
+      points:[
+        {d:"2025-01-15",p:18.0,kind:"est"},{d:"2025-03-15",p:18.3,kind:"est"},{d:"2025-05-15",p:18.7,kind:"est"},
+        {d:"2025-07-15",p:19.1,kind:"est"},{d:"2025-09-15",p:19.6,kind:"est"},{d:"2025-11-15",p:20.0,kind:"est"},
+        {d:"2026-01-15",p:20.3,kind:"est"},{d:"2026-03-15",p:20.5,kind:"est"},{d:"2026-05-15",p:20.7,kind:"est"},
+        {d:"2026-06-21",p:21.0,kind:"est"} ] },
+    { id:"arp",   name:"아크로리버파크", py:24, type:"24평", area:59, color:"#D45D43",
+      points:[
+        {d:"2025-01-15",p:36.0,kind:"est"},{d:"2025-03-15",p:37.0,kind:"est"},{d:"2025-05-15",p:38.0,kind:"est"},
+        {d:"2025-07-15",p:39.5,kind:"est"},{d:"2025-09-15",p:41.0,kind:"est"},{d:"2025-11-15",p:42.0,kind:"est"},
+        {d:"2026-01-15",p:42.5,kind:"est"},{d:"2026-03-15",p:43.0,kind:"est"},
+        {d:"2026-05-15",p:44.3,kind:"est"},{d:"2026-05-15",p:44.0,kind:"real",note:"59㎡ 평균"},
+        {d:"2026-06-21",p:45.5,kind:"est"} ] },
+    { id:"gjp",   name:"개포자이프레지던스", py:24, type:"24B", area:59, color:"#3E8E5A",
+      points:[
+        {d:"2025-01-15",p:21.5,kind:"est"},{d:"2025-03-15",p:22.0,kind:"est"},{d:"2025-05-15",p:22.8,kind:"est"},
+        {d:"2025-07-15",p:23.5,kind:"est"},{d:"2025-09-15",p:24.3,kind:"est"},{d:"2025-11-15",p:25.2,kind:"est"},
+        {d:"2026-01-15",p:26.0,kind:"est"},{d:"2026-02-15",p:26.3,kind:"real"},
+        {d:"2026-03-15",p:27.2,kind:"est"},{d:"2026-03-15",p:27.4,kind:"real"},
+        {d:"2026-05-15",p:28.0,kind:"est"},{d:"2026-06-15",p:28.95,kind:"real",note:"신고가"},
+        {d:"2026-06-21",p:28.9,kind:"est"} ] },
+    { id:"mpz",   name:"마포프레스티지자이", py:24, type:"24평", area:59, color:"#4E6FB5",
+      points:[
+        {d:"2025-01-15",p:16.5,kind:"est"},{d:"2025-03-15",p:16.8,kind:"est"},{d:"2025-05-15",p:17.2,kind:"est"},
+        {d:"2025-07-15",p:17.6,kind:"est"},{d:"2025-09-15",p:18.2,kind:"est"},{d:"2025-11-15",p:18.8,kind:"est"},
+        {d:"2026-01-15",p:19.3,kind:"est"},{d:"2026-03-15",p:19.5,kind:"est"},{d:"2026-05-15",p:19.8,kind:"est"},
+        {d:"2026-06-21",p:20.0,kind:"est"} ] },
+    { id:"arh",   name:"아크로리버하임", py:24, type:"24평", area:59, color:"#E07B39",
+      points:[
+        {d:"2025-01-15",p:22.0,kind:"est"},{d:"2025-03-15",p:22.5,kind:"est"},{d:"2025-05-15",p:23.5,kind:"est"},
+        {d:"2025-07-15",p:24.5,kind:"est"},{d:"2025-09-15",p:25.5,kind:"est"},{d:"2025-11-15",p:26.0,kind:"est"},
+        {d:"2026-01-15",p:26.3,kind:"est"},{d:"2026-03-15",p:26.6,kind:"est"},{d:"2026-05-15",p:26.8,kind:"est"},
+        {d:"2026-06-21",p:27.0,kind:"est"} ] },
+    { id:"sgj",   name:"서초그랑자이", py:25, type:"25평", area:59, color:"#B5468A",
+      points:[
+        {d:"2025-01-15",p:28.0,kind:"est"},{d:"2025-03-15",p:29.0,kind:"est"},{d:"2025-05-15",p:30.0,kind:"est"},
+        {d:"2025-07-15",p:31.0,kind:"est"},{d:"2025-09-15",p:32.0,kind:"est"},{d:"2025-11-15",p:32.8,kind:"est"},
+        {d:"2026-01-15",p:33.0,kind:"est"},{d:"2026-03-15",p:33.3,kind:"est"},{d:"2026-05-15",p:33.7,kind:"est"},
+        {d:"2026-06-21",p:34.0,kind:"est"} ] },
+    { id:"jsr",   name:"잠실르엘", py:25, type:"25평", area:59, color:"#7FA02C",
+      points:[
+        {d:"2025-01-15",p:26.0,kind:"est"},{d:"2025-03-15",p:27.0,kind:"est"},{d:"2025-05-15",p:28.5,kind:"est"},
+        {d:"2025-07-15",p:29.5,kind:"est"},{d:"2025-09-15",p:30.0,kind:"est"},{d:"2025-11-15",p:31.0,kind:"est"},
+        {d:"2026-01-15",p:31.5,kind:"est"},{d:"2026-03-15",p:31.8,kind:"est"},
+        {d:"2026-04-15",p:32.0,kind:"real",note:"입주권"},
+        {d:"2026-05-15",p:32.0,kind:"est"},{d:"2026-06-21",p:32.0,kind:"est"} ] },
+    { id:"asf",   name:"아크로서울포레스트", py:37, type:"37평", area:97, color:"#8C6239",
+      points:[
+        {d:"2025-01-15",p:46.0,kind:"est"},{d:"2025-03-15",p:47.0,kind:"est"},{d:"2025-05-15",p:48.5,kind:"est"},
+        {d:"2025-07-15",p:50.0,kind:"est"},{d:"2025-09-15",p:51.5,kind:"est"},{d:"2025-11-15",p:53.0,kind:"est"},
+        {d:"2026-01-15",p:54.0,kind:"est"},{d:"2026-02-05",p:55.65,kind:"real",note:"25층"},
+        {d:"2026-03-15",p:55.0,kind:"est"},{d:"2026-05-15",p:55.5,kind:"est"},{d:"2026-06-21",p:56.0,kind:"est"} ] },
+    { id:"prk",   name:"잠실파크리오", py:26, type:"26평", area:59, color:"#00838F",
+      points:[
+        {d:"2025-01-15",p:20.0,kind:"est"},{d:"2025-03-15",p:20.5,kind:"est"},{d:"2025-05-15",p:21.5,kind:"est"},
+        {d:"2025-07-15",p:22.5,kind:"est"},{d:"2025-09-15",p:23.5,kind:"est"},{d:"2025-11-15",p:24.5,kind:"est"},
+        {d:"2026-01-15",p:25.0,kind:"est"},{d:"2026-03-15",p:25.8,kind:"est"},
+        {d:"2026-04-14",p:26.7,kind:"real"},
+        {d:"2026-05-15",p:26.3,kind:"est"},{d:"2026-06-21",p:26.5,kind:"est"} ] },
+    { id:"khj",   name:"경희궁자이", py:34, type:"34평", area:84, color:"#AD1457",
+      points:[
+        {d:"2025-01-15",p:20.5,kind:"est"},{d:"2025-03-15",p:21.0,kind:"est"},{d:"2025-05-15",p:22.0,kind:"est"},
+        {d:"2025-07-15",p:23.0,kind:"est"},{d:"2025-09-15",p:24.0,kind:"est"},
+        {d:"2025-11-28",p:25.9,kind:"real"},
+        {d:"2025-11-15",p:25.5,kind:"est"},{d:"2026-01-15",p:25.8,kind:"est"},{d:"2026-03-15",p:26.0,kind:"est"},
+        {d:"2026-05-15",p:26.3,kind:"est"},{d:"2026-06-21",p:26.5,kind:"est"} ] },
+    { id:"mzj", region:"부산", name:"마린시티자이", py:34, type:"34평", area:84, color:"#2F8F8F",
+      points:[
+        {d:"2025-01-15",p:12.5,kind:"est"},{d:"2025-03-15",p:13.0,kind:"est"},{d:"2025-05-15",p:13.5,kind:"est"},
+        {d:"2025-07-15",p:14.0,kind:"est"},{d:"2025-09-15",p:14.3,kind:"est"},{d:"2025-11-15",p:14.6,kind:"est"},
+        {d:"2026-01-15",p:14.8,kind:"est"},{d:"2026-03-15",p:15.0,kind:"est"},
+        {d:"2026-05-15",p:15.0,kind:"real"},
+        {d:"2026-05-15",p:15.3,kind:"est"},{d:"2026-06-21",p:15.5,kind:"est"} ] },
+    { id:"cml", region:"부산", name:"해운대 현대카멜리아", py:54, type:"54평", area:136, color:"#C9772E",
+      points:[
+        {d:"2025-01-15",p:12.5,kind:"est"},{d:"2025-03-15",p:12.5,kind:"est"},{d:"2025-05-15",p:12.8,kind:"est"},
+        {d:"2025-07-15",p:13.0,kind:"est"},{d:"2025-09-15",p:13.2,kind:"est"},{d:"2025-11-15",p:13.3,kind:"est"},
+        {d:"2026-01-15",p:13.4,kind:"est"},{d:"2026-03-15",p:13.5,kind:"est"},{d:"2026-05-15",p:13.5,kind:"est"},
+        {d:"2026-06-21",p:13.5,kind:"est"} ] },
+    { id:"znt", region:"부산", name:"두산위브더제니스", py:52, type:"52평", area:118, color:"#4E6FB5",
+      points:[
+        {d:"2025-01-15",p:13.5,kind:"est"},{d:"2025-03-15",p:13.8,kind:"est"},{d:"2025-05-15",p:14.3,kind:"est"},
+        {d:"2025-07-15",p:14.8,kind:"est"},{d:"2025-09-15",p:15.3,kind:"est"},{d:"2025-11-15",p:15.8,kind:"est"},
+        {d:"2026-01-15",p:16.0,kind:"est"},{d:"2026-03-15",p:16.2,kind:"est"},{d:"2026-05-15",p:16.4,kind:"est"},
+        {d:"2026-06-21",p:16.5,kind:"est"} ] },
+    { id:"psd", region:"부산", name:"두산위브포세이돈", py:50, type:"50평", area:136, color:"#3E8E5A",
+      points:[
+        {d:"2025-01-15",p:13.0,kind:"est"},{d:"2025-03-15",p:13.3,kind:"est"},{d:"2025-05-15",p:13.8,kind:"est"},
+        {d:"2025-07-15",p:14.3,kind:"est"},{d:"2025-09-15",p:14.8,kind:"est"},{d:"2025-11-15",p:15.3,kind:"est"},
+        {d:"2026-01-15",p:15.5,kind:"est"},{d:"2026-03-15",p:15.7,kind:"est"},{d:"2026-05-15",p:15.9,kind:"est"},
+        {d:"2026-06-21",p:16.0,kind:"est"} ] },
+    { id:"ipk", region:"부산", name:"해운대아이파크", py:48, type:"48평", area:120, color:"#B5468A",
+      points:[
+        {d:"2025-01-15",p:14.0,kind:"est"},{d:"2025-03-15",p:14.5,kind:"est"},{d:"2025-05-15",p:15.0,kind:"est"},
+        {d:"2025-07-15",p:15.8,kind:"est"},{d:"2025-09-15",p:16.3,kind:"est"},{d:"2025-11-15",p:16.8,kind:"est"},
+        {d:"2026-01-15",p:17.0,kind:"est"},{d:"2026-03-15",p:17.2,kind:"est"},{d:"2026-05-15",p:17.4,kind:"est"},
+        {d:"2026-06-21",p:17.5,kind:"est"} ] },
+    { id:"jad", region:"부산", name:"해운대경동제이드", py:50, type:"50평", area:135, color:"#8C6BB1",
+      points:[
+        {d:"2025-01-15",p:15.5,kind:"est"},{d:"2025-03-15",p:16.0,kind:"est"},{d:"2025-05-15",p:16.8,kind:"est"},
+        {d:"2025-07-15",p:17.5,kind:"est"},{d:"2025-09-15",p:18.0,kind:"est"},{d:"2025-11-15",p:18.5,kind:"est"},
+        {d:"2026-01-15",p:18.7,kind:"est"},{d:"2026-03-15",p:18.9,kind:"est"},{d:"2026-05-15",p:19.0,kind:"est"},
+        {d:"2026-06-21",p:19.0,kind:"est"} ] }
+  ]
+};
+// 시세 추정 시점(툴팁 스냅) & x축 라벨
+const ANCHORS = ["2025-01-15","2025-03-15","2025-05-15","2025-07-15","2025-09-15","2025-11-15","2026-01-15","2026-03-15","2026-05-15","2026-06-21"];
+const XTICKS  = ["2025-01-15","2025-07-15","2026-01-15","2026-06-21"];
+const SHORT = {yscp:"용산", trim:"트리마제", east:"이스트폴", arp:"아리팍", gjp:"개포자이", mpz:"마포", arh:"리버하임", sgj:"서초그랑", jsr:"잠실르엘", asf:"아서포", prk:"파크리오", khj:"경희궁",
+  mzj:"마린시티자이", cml:"카멜리아", znt:"제니스", psd:"포세이돈", ipk:"아이파크", jad:"경동제이드"};
+const NAVER = {yscp:"용산센트럴파크해링턴스퀘어", trim:"서울숲트리마제", east:"롯데캐슬이스트폴", arp:"아크로리버파크", gjp:"개포자이프레지던스", mpz:"마포프레스티지자이", arh:"아크로리버하임", sgj:"서초그랑자이", jsr:"잠실르엘", asf:"아크로서울포레스트", prk:"잠실파크리오", khj:"경희궁자이2단지",
+  mzj:"마린시티자이", cml:"해운대현대카멜리아", znt:"해운대두산위브더제니스", psd:"마린시티두산위브포세이돈", ipk:"해운대아이파크", jad:"해운대경동제이드"};
+const naverUrl = id => "https://m.land.naver.com/search/result/"+encodeURIComponent(NAVER[id]);
+// 지역(서울/부산) 분리: 모든 렌더는 선택된 지역만 대상으로 계산
+DATA.apartments.forEach(a=>{ if(!a.region) a.region="서울"; });
+let region = "서울";
+function regionApts(){ return DATA.apartments.filter(a=>a.region===region); }
+
+/* ===================== helpers ===================== */
+const $ = s => document.querySelector(s);
+const td = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d).getTime(); };
+const fmtD = s => { const [,m,d]=s.split("-").map(Number); return m+"/"+d; };
+const hidden = new Set();
+let metric = "abs";
+
+// 가격(억) → 표시 변환
+function val(ap, p){
+  if(metric==="abs") return p;                 // 억
+  if(metric==="ppy") return p/ap.py;           // 억/평
+  // idx: 첫 추정 시점 대비 % (기준 100)
+  const base = ap.points.find(x=>x.kind==="est").p;
+  return (p/base)*100;
+}
+function estPoints(ap){ return ap.points.filter(p=>p.kind==="est"); }
+function curEst(ap){ const e=estPoints(ap); return e[e.length-1]; }
+function prevEst(ap){ const e=estPoints(ap); return e.length>1?e[e.length-2]:null; }
+
+function fmtAbs(p){ return p.toFixed(1); }
+function fmtPpy(p,py){ const per=p/py; // 억/평
+  return per>=1 ? per.toFixed(2)+"억" : Math.round(per*10000).toLocaleString()+"만"; }
+function fmtIdx(v){ return (v>=0?"+":"")+v.toFixed(1)+"%"; }
+
+/* ===================== chart ===================== */
+const CW=760, CH=460, PL=52, PR=104, PT=16, PB=40;
+const innerW=CW-PL-PR, innerH=CH-PT-PB;
+const xmin=td("2025-01-01"), xmax=td("2026-06-21");
+const xScale=t=>PL+( (t-xmin)/(xmax-xmin) )*innerW;
+
+function yDomain(){
+  let lo=Infinity, hi=-Infinity;
+  regionApts().forEach(ap=>{ if(hidden.has(ap.id))return;
+    ap.points.forEach(pt=>{ const v=val(ap,pt.p); if(v<lo)lo=v; if(v>hi)hi=v; }); });
+  if(lo===Infinity){lo=0;hi=1;}
+  const pad=(hi-lo)*0.12||1; return [lo-pad, hi+pad];
+}
+
+function drawChart(){
+  const svg=$("#chart"); const [lo,hi]=yDomain();
+  const yScale=v=>PT+innerH-((v-lo)/(hi-lo))*innerH;
+  let g="";
+
+  // y gridlines + labels (4 ticks)
+  for(let i=0;i<=4;i++){
+    const v=lo+(hi-lo)*i/4, y=yScale(v);
+    g+=`<line class="gridline" x1="${PL}" y1="${y.toFixed(1)}" x2="${CW-PR}" y2="${y.toFixed(1)}"/>`;
+    let lab;
+    if(metric==="abs") lab=v.toFixed(0)+"억";
+    else if(metric==="ppy") lab=v>=1? v.toFixed(1)+"억":Math.round(v*10000)+"만";
+    else lab=v.toFixed(0);
+    g+=`<text class="axislbl" x="${PL-8}" y="${(y+4).toFixed(1)}" text-anchor="end">${lab}</text>`;
+  }
+  // x labels (quarterly ticks with year)
+  XTICKS.forEach(a=>{ const x=xScale(td(a)); const [yy,mm]=a.split("-");
+    g+=`<text class="axislbl" x="${x.toFixed(1)}" y="${CH-14}" text-anchor="middle">${yy.slice(2)}.${mm}</text>`; });
+
+  // lines (est) + dots
+  regionApts().forEach(ap=>{ if(hidden.has(ap.id))return;
+    const ep=estPoints(ap).slice().sort((a,b)=>td(a.d)-td(b.d));
+    const pts=ep.map(pt=>`${xScale(td(pt.d)).toFixed(1)},${yScale(val(ap,pt.p)).toFixed(1)}`).join(" ");
+    g+=`<polyline class="sline" stroke="${ap.color}" points="${pts}"/>`;
+    ep.forEach(pt=>{ g+=`<circle class="sdot" cx="${xScale(td(pt.d)).toFixed(1)}" cy="${yScale(val(ap,pt.p)).toFixed(1)}" r="3.2" fill="${ap.color}"/>`; });
+  });
+  // real transaction dots (overlay)
+  regionApts().forEach(ap=>{ if(hidden.has(ap.id))return;
+    ap.points.filter(p=>p.kind==="real").forEach(pt=>{
+      const x=xScale(td(pt.d)), y=yScale(val(ap,pt.p));
+      g+=`<circle class="realdot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" stroke="${ap.color}"/>`;
+    });
+  });
+
+  // direct end-of-line labels (no color matching needed)
+  let ends=[];
+  regionApts().forEach(ap=>{ if(hidden.has(ap.id))return;
+    const ep=estPoints(ap).slice().sort((a,b)=>td(a.d)-td(b.d));
+    const last=ep[ep.length-1];
+    const dy=yScale(val(ap,last.p)), dx=xScale(td(last.d));
+    ends.push({label:SHORT[ap.id], color:ap.color, dx, dy, y:dy});
+  });
+  ends.sort((a,b)=>a.y-b.y);
+  const gap=15, top=PT+6, bot=PT+innerH-2;
+  for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<gap) ends[i].y=ends[i-1].y+gap; // push down
+  const over=ends.length?ends[ends.length-1].y-bot:0;                                     // pull up if overflow
+  if(over>0) ends.forEach(e=>e.y-=over);
+  if(ends.length&&ends[0].y<top){ const sh=top-ends[0].y; ends.forEach(e=>e.y+=sh); }
+  ends.forEach(e=>{
+    const lx=e.dx+9;
+    if(Math.abs(e.dy-e.y)>2)
+      g+=`<path d="M ${e.dx.toFixed(1)} ${e.dy.toFixed(1)} C ${(e.dx+5).toFixed(1)} ${e.dy.toFixed(1)}, ${(lx-3).toFixed(1)} ${e.y.toFixed(1)}, ${lx.toFixed(1)} ${e.y.toFixed(1)}" fill="none" stroke="${e.color}" stroke-width="1" opacity=".55"/>`;
+    g+=`<text x="${lx.toFixed(1)}" y="${(e.y+4).toFixed(1)}" font-family="var(--font)" font-size="13" font-weight="800" fill="${e.color}">${e.label}</text>`;
+  });
+
+  svg.innerHTML=g;
+  $("#ymetric").textContent = metric==="abs" ? "매매가 (억원) · 선=호가·시세, ●=실거래"
+    : metric==="ppy" ? "평당가 (억/평)" : "상승률 (2025.01=100) · 위로 갈수록 많이 오름";
+}
+
+/* ===================== tooltip ===================== */
+const tt=$("#tt");
+function setupTip(){
+  const svg=$("#chart");
+  function move(ev){
+    const r=svg.getBoundingClientRect();
+    const cx=((ev.touches?ev.touches[0].clientX:ev.clientX)-r.left)/r.width*CW;
+    // nearest anchor
+    let best=ANCHORS[0], bd=1e9;
+    ANCHORS.forEach(a=>{ const d=Math.abs(xScale(td(a))-cx); if(d<bd){bd=d;best=a;} });
+    const [lo,hi]=yDomain();
+    let rows="";
+    regionApts().filter(ap=>!hidden.has(ap.id))
+      .map(ap=>({ap, pt:ap.points.find(p=>p.d===best && p.kind==="est")}))
+      .filter(o=>o.pt)
+      .sort((a,b)=>val(b.ap,b.pt.p)-val(a.ap,a.pt.p))
+      .forEach(({ap,pt})=>{
+        let disp;
+        if(metric==="abs") disp=pt.p.toFixed(1)+"억";
+        else if(metric==="ppy") disp=fmtPpy(pt.p,ap.py)+"/평";
+        else disp=fmtIdx(val(ap,pt.p)-100);
+        rows+=`<div class="r"><span class="nm"><span class="sw" style="background:${ap.color}"></span>${ap.name}</span><b>${disp}</b></div>`;
+      });
+    if(!rows){tt.style.opacity=0;return;}
+    tt.innerHTML=`<div class="d">${best.slice(2).replace(/-/g,".")} 기준</div>${rows}`;
+    tt.style.opacity=1;
+    const gx=xScale(td(best))/CW*r.width;
+    let left=gx+12; if(left+tt.offsetWidth>r.width) left=gx-tt.offsetWidth-12;
+    tt.style.left=Math.max(2,left)+"px"; tt.style.top="8px";
+    // guide
+    drawChart();
+    const guide=`<line class="guide" x1="${xScale(td(best)).toFixed(1)}" y1="${PT}" x2="${xScale(td(best)).toFixed(1)}" y2="${PT+innerH}"/>`;
+    svg.insertAdjacentHTML("afterbegin","<g>"+guide+"</g>");
+  }
+  function leave(){ tt.style.opacity=0; drawChart(); }
+  svg.addEventListener("pointermove",move);
+  svg.addEventListener("pointerdown",move);
+  svg.addEventListener("pointerleave",leave);
+  svg.addEventListener("touchend",leave);
+}
+
+/* ===================== legend ===================== */
+function drawLegend(){
+  const el=$("#legend"); el.innerHTML="";
+  const ordered=regionApts().slice().sort((a,b)=>curEst(b).p-curEst(a).p);
+  ordered.forEach(ap=>{
+    const b=document.createElement("div");
+    b.className="lg"+(hidden.has(ap.id)?" off":"");
+    b.innerHTML=`<span class="sw" style="background:${ap.color}"></span>${ap.name}`;
+    b.onclick=()=>{ hidden.has(ap.id)?hidden.delete(ap.id):hidden.add(ap.id);
+      if(hidden.size===regionApts().length) hidden.delete(ap.id); // 최소 1개 유지
+      drawLegend(); drawChart(); };
+    el.appendChild(b);
+  });
+}
+
+/* ===================== cards ===================== */
+function baseIdx(ap){ return ap.points.find(p=>p.kind==="est").p; }
+function curIdx(ap){ return curEst(ap).p/baseIdx(ap)*100; }
+function drawCards(){
+  const el=$("#cards"); el.innerHTML="";
+  const cheapest=regionApts().slice().sort((a,b)=>(curEst(a).p/a.py)-(curEst(b).p/b.py))[0].id;
+  const avgIdx=regionApts().reduce((s,a)=>s+curIdx(a),0)/regionApts().length;
+  const sorted=regionApts().slice().sort((a,b)=>curEst(b).p-curEst(a).p); // 그래프와 동일(가격 높은 순)
+  sorted.forEach(ap=>{
+    const cur=curEst(ap), prev=prevEst(ap);
+    const ch = prev ? (cur.p-prev.p)/prev.p*100 : 0;
+    const dir = ch>0.05?"up":ch<-0.05?"down":"flat";
+    const arrow = dir==="up"?"▲":dir==="down"?"▼":"–";
+    const rel = curIdx(ap)-avgIdx;                 // 팩 평균 대비 %p (음수 = 상대적으로 눌림)
+    const rcls = rel<=-3?"low":rel>=3?"high":"mid";
+    const rtag = rel<=-3?"상대 저평가":rel>=3?"상대 강세":"평균 수준";
+    const c=document.createElement("a");
+    c.className="card ucard";
+    c.href=naverUrl(ap.id); c.target="_blank"; c.rel="noopener";
+    c.innerHTML=`
+      <div class="bar" style="background:${ap.color}"></div>
+      ${ap.id===cheapest?'<div class="badge">최저 평당가</div>':''}
+      <div class="nm">${ap.name} <span class="go">↗</span></div>
+      <div class="py">${ap.type} · 전용 ${ap.area}㎡</div>
+      <div class="price">${cur.p.toFixed(1)}<span class="u">억</span></div>
+      <div class="meta">
+        <div class="ppy">평당 <b>${fmtPpy(cur.p,ap.py)}</b></div>
+        <span class="chiplab ${dir}">${arrow} ${Math.abs(ch).toFixed(1)}%</span>
+      </div>
+      <div class="relrow">
+        <span class="relchip ${rcls}">합 대비 ${rel>=0?"+":""}${rel.toFixed(1)}%p · ${rtag}</span>
+      </div>`;
+    el.appendChild(c);
+  });
+}
+
+/* ===================== insights (시사점) ===================== */
+function setAsof(){ $("#asof").textContent=DATA.asof.replace(/-/g,"."); }
+function drawInsights(){
+  const aps=regionApts();
+  const avgIdx=aps.reduce((s,a)=>s+curIdx(a),0)/aps.length;
+  const rel=a=>curIdx(a)-avgIdx;
+  const chg=a=>{ const p=prevEst(a); return p?(curEst(a).p-p.p)/p.p*100:0; };
+  const ppy=a=>curEst(a).p/a.py;
+
+  const byRel=aps.slice().sort((x,y)=>rel(x)-rel(y));
+  const lag=byRel.slice(0,2);                      // 가장 눌린 2곳
+  const hotU=byRel[byRel.length-1];                // 가장 앞선 1곳
+  const mom=aps.slice().sort((x,y)=>chg(y)-chg(x))[0]; // 최근 모멘텀
+  const cheap=aps.slice().sort((x,y)=>ppy(x)-ppy(y))[0];
+  const exp=aps.slice().sort((x,y)=>ppy(y)-ppy(x))[0];
+  // 최근(직전 점 이후) 실거래 신고가 이벤트
+  const hi=aps.map(a=>{ const r=a.points.filter(p=>p.kind==="real"); if(!r.length)return null;
+    const last=r[r.length-1]; const max=Math.max(...a.points.map(p=>p.p));
+    return last.p>=max-0.01?{a,p:last.p}:null; }).filter(Boolean);
+
+  const C={buy:"var(--rel-low,#2D5FA8)"};
+  const row=(mk,tag,tcls,html)=>`<div class="ins"><span class="mk" style="background:${mk}"></span>
+      <div><span class="tag ${tcls}">${tag}</span>${html}</div></div>`;
+
+  let h="";
+  h+=row(lag[0].color,"매수 관점","buy",
+    `<b>${lag[0].name}</b>·<b>${lag[1].name}</b>가 ${aps.length}단지 평균보다 각각 ${rel(lag[0]).toFixed(1)}%p, ${rel(lag[1]).toFixed(1)}%p 뒤처져 — 상대적으로 가장 눌린 구간이에요.`);
+  h+=row(hotU.color,"과열 주의","hot",
+    `<b>${hotU.name}</b>는 평균 대비 +${rel(hotU).toFixed(1)}%p로 가장 앞서 달렸어요. 추격 매수는 신중히.`);
+  h+=row(mom.color,"최근 모멘텀","mv",
+    `직전 대비 <b>${mom.name}</b>가 +${chg(mom).toFixed(1)}%로 가장 강하게 움직였어요.`);
+  h+=row(cheap.color,"평당가","fyi",
+    `평당가는 <b>${cheap.name}</b>(${fmtPpy(curEst(cheap).p,cheap.py)}) ~ <b>${exp.name}</b>(${fmtPpy(curEst(exp).p,exp.py)})로 약 ${(ppy(exp)/ppy(cheap)).toFixed(1)}배 차이.`);
+  if(hi.length) h+=row(hi[0].a.color,"실거래","fyi",
+    `<b>${hi[0].a.name}</b>는 최근 실거래가 자체 최고가 부근(${hi[0].p}억) — 호가만이 아닌 실거래로도 강세 확인.`);
+  $("#insights").innerHTML=h;
+}
+
+/* ===================== init ===================== */
+$("#regseg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  region=b.dataset.r;
+  [...$("#regseg").children].forEach(x=>x.classList.toggle("on",x===b));
+  hidden.clear();
+  $("#sortnote").textContent = "· 가격 높은 순 (그래프와 동일) · 탭하면 네이버부동산";
+  drawChart(); drawCards(); drawInsights();
+});
+$("#seg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  metric=b.dataset.m;
+  [...$("#seg").children].forEach(x=>x.classList.toggle("on",x===b));
+  drawChart(); drawCards();
+});
+setAsof(); drawChart(); drawCards(); drawInsights(); setupTip();
+</script>
+</body>
+</html>
