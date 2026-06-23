@@ -90,6 +90,10 @@
   .ucard .price{font-size:24px;font-weight:800;letter-spacing:-.03em;padding-left:4px;
     font-feature-settings:"tnum" 1;}
   .ucard .price .u{font-size:14px;font-weight:700;color:var(--sub);margin-left:1px;}
+  .ucard .ppytop{font-size:12px;color:var(--sub);font-weight:600;padding-left:4px;margin:8px 0 0;}
+  .ucard .ppytop b{color:var(--ink);font-weight:700;font-feature-settings:"tnum" 1;}
+  .ucard .pricerow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:1px;}
+  .ucard .relnum{font-size:15px;font-weight:800;color:var(--ink);font-feature-settings:"tnum" 1;letter-spacing:-.01em;}
   .ucard .meta{display:flex;justify-content:space-between;align-items:center;
     margin-top:9px;padding-left:4px;gap:8px;}
   .ucard .ppy{font-size:11.5px;color:var(--sub);font-weight:600;}
@@ -631,14 +635,14 @@ function drawCards(){
     c.innerHTML=`
       <div class="bar" style="background:${ap.color}"></div>
       <div class="nm"><span class="nmtxt">${ap.name}</span><span class="pick" style="--c:${ap.color}">${sel?(compare.indexOf(ap.id)+1):""}</span></div>
-      <div class="py">${ap.type} · 전용 ${ap.area}㎡${cheap?' <span class="cheaptag">최저 평당가</span>':''}</div>
-      <div class="price">${cur.p.toFixed(1)}<span class="u">억</span></div>
-      <div class="meta">
-        <div class="ppy">평당 <b>${fmtPpy(cur.p,ap.py)}</b></div>
+      <div class="py">${ap.type} · 전용 ${ap.area}㎡</div>
+      <div class="ppytop">평당 <b>${fmtPpy(cur.p,ap.py)}</b></div>
+      <div class="pricerow">
+        <div class="price">${cur.p.toFixed(1)}<span class="u">억</span></div>
         <span class="chiplab ${dir}">${arrow} ${Math.abs(ch).toFixed(1)}%</span>
       </div>
       <div class="gauge">
-        <div class="gtop"><span>합 대비 <b>${ri&&ri.cur>=0?"+":""}${ri?ri.cur.toFixed(1):"0.0"}%p</b></span><span class="gst ${st}">${stLab}</span></div>
+        <div class="gtop"><span class="relnum">${ri&&ri.cur>=0?"+":""}${ri?ri.cur.toFixed(1):"0.0"}%p</span><span class="gst ${st}">${stLab}</span></div>
         <div class="gtrack">
           ${ri?`<div class="gmu" style="left:${pct(ri.mu).toFixed(0)}%"></div>
           <div class="gdot ${st}" style="left:${pct(ri.cur).toFixed(0)}%"></div>`:""}
@@ -672,7 +676,7 @@ function gapSVG(ser,lo,hi,mean){
   return `<svg class="cmpchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${band}${meanL}${line}${dot}${lab}</svg>`;
 }
 function normSVG(A,B){
-  const W=320,H=132,pl=8,pr=66,ptp=12,pbp=16, iw=W-pl-pr, ih=H-ptp-pbp;
+  const W=760,H=300,pl=10,pr=110,ptp=16,pbp=20, iw=W-pl-pr, ih=H-ptp-pbp;
   const xs=td(ANCHORS[0]), xe=td(ANCHORS[ANCHORS.length-1]);
   const X=t=>pl+(t-xs)/(xe-xs)*iw;
   const gv=(ap,pt)=> pt.p;   // 정규화는 절대가·평당가 동일(상수 약분)
@@ -680,20 +684,23 @@ function normSVG(A,B){
     const b=gv(ap,e[0]); return e.map(pt=>({d:pt.d, v:gv(ap,pt)/b*100})); };
   const na=norm(A), nb=norm(B);
   const all=[...na,...nb].map(o=>o.v); let lo=Math.min(...all),hi=Math.max(...all);
-  const pad=(hi-lo)*0.15||2; lo-=pad; hi+=pad;
+  const pad=(hi-lo)*0.18||2; lo-=pad; hi+=pad;
   const Y=v=>ptp+ih-(v-lo)/(hi-lo)*ih;
-  let body=`<line x1="${pl}" y1="${Y(100).toFixed(1)}" x2="${W-pr}" y2="${Y(100).toFixed(1)}" stroke="var(--hair-strong)" stroke-dasharray="3 3" stroke-width="1"/>
-    <text x="${pl}" y="${(Y(100)-3).toFixed(1)}" font-size="9" fill="var(--sub)">100 (2025.01)</text>`;
+  let body=`<line x1="${pl}" y1="${Y(100).toFixed(1)}" x2="${W-pr}" y2="${Y(100).toFixed(1)}" stroke="var(--hair-strong)" stroke-dasharray="4 3" stroke-width="1"/>
+    <text x="${pl}" y="${(Y(100)-5).toFixed(1)}" font-size="12" font-family="var(--font)" fill="var(--sub)">100 · 2025.01</text>`;
   const ends=[];
   const mk=(arr,c,id)=>{ const pts=arr.map(o=>`${X(td(o.d)).toFixed(1)},${Y(o.v).toFixed(1)}`).join(" ");
     const last=arr[arr.length-1], lx=X(td(last.d)), ly=Y(last.v);
     ends.push({x:lx,y:ly,c,label:SHORT[id]});
-    return `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/>`+
-      `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.4" fill="${c}" stroke="#fff" stroke-width="1.2"/>`; };
+    return `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`+
+      `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3.4" fill="${c}" stroke="#fff" stroke-width="1.5"/>`; };
   body+=mk(na,A.color,A.id)+mk(nb,B.color,B.id);
   ends.sort((a,b)=>a.y-b.y);
-  if(ends.length===2 && ends[1].y-ends[0].y<13){ const m=(ends[0].y+ends[1].y)/2; ends[0].y=m-7; ends[1].y=m+7; }
-  ends.forEach(e=> body+=`<text x="${(e.x+7).toFixed(1)}" y="${(e.y+3.5).toFixed(1)}" font-size="11" font-weight="800" fill="${e.c}">${e.label}</text>`);
+  const gap=17, top=ptp+6, bot=ptp+ih-2;
+  for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<gap) ends[i].y=ends[i-1].y+gap;
+  const ov=ends.length?ends[ends.length-1].y-bot:0; if(ov>0) ends.forEach(e=>e.y-=ov);
+  if(ends.length&&ends[0].y<top){const sh=top-ends[0].y;ends.forEach(e=>e.y+=sh);}
+  ends.forEach(e=> body+=`<text x="${(e.x+9).toFixed(1)}" y="${(e.y+4).toFixed(1)}" font-size="13" font-weight="800" font-family="var(--font)" fill="${e.c}">${e.label}</text>`);
   return `<svg class="cmpchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
 }
 function drawCompare(){
